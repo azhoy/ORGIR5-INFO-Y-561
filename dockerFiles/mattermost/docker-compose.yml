@@ -1,0 +1,76 @@
+version: "2.4"
+services:
+  postgres:
+    image: postgres:${POSTGRES_IMAGE_TAG}
+    restart: ${RESTART_POLICY}
+    security_opt:
+      - no-new-privileges:true
+    pids_limit: 100
+    read_only: true
+    tmpfs:
+      - /tmp
+      - /var/run/postgresql
+    volumes:
+      - ${POSTGRES_DATA_PATH}:/var/lib/postgresql/data
+    environment:
+      - TZ
+      - POSTGRES_USER
+      - POSTGRES_PASSWORD
+      - POSTGRES_DB
+  mattermost:
+    depends_on:
+      - postgres
+    image: mattermost/${MATTERMOST_IMAGE}:${MATTERMOST_IMAGE_TAG}
+    restart: ${RESTART_POLICY}
+    security_opt:
+      - no-new-privileges:true
+    pids_limit: 200
+    ports:
+      - ${CALLS_PORT}:8443/udp
+    read_only: false
+    tmpfs:
+      - /tmp
+    volumes:
+      - ${MATTERMOST_CONFIG_PATH}:/mattermost/config:rw
+      - ${MATTERMOST_DATA_PATH}:/mattermost/data:rw
+      - ${MATTERMOST_LOGS_PATH}:/mattermost/logs:rw
+      - ${MATTERMOST_PLUGINS_PATH}:/mattermost/plugins:rw
+      - ${MATTERMOST_CLIENT_PLUGINS_PATH}:/mattermost/client/plugins:rw
+      - ${MATTERMOST_BLEVE_INDEXES_PATH}:/mattermost/bleve-indexes:rw
+    environment:
+      - TZ
+      - MM_SQLSETTINGS_DRIVERNAME
+      - MM_SQLSETTINGS_DATASOURCE
+      - MM_BLEVESETTINGS_INDEXDIR
+      - MM_SERVICESETTINGS_SITEURL
+  nginx:
+    depends_on:
+      - mattermost
+    container_name: nginx_mattermost
+    image: nginx:${NGINX_IMAGE_TAG}
+    restart: ${RESTART_POLICY}
+    security_opt:
+      - no-new-privileges:true
+    pids_limit: 100
+    read_only: true
+    tmpfs:
+      - /var/run
+      - /var/cache
+      - /var/log/nginx
+    volumes:
+      - ${NGINX_CONFIG_PATH}:/etc/nginx/conf.d:ro
+      - ${NGINX_DHPARAMS_FILE}:/dhparams4096.pem
+      - ${CERT_PATH}:/cert.pem:ro
+      - ${KEY_PATH}:/key.pem:ro
+      - shared-webroot:/usr/share/nginx/html
+    environment:
+      - TZ
+    ports:
+      - ${HTTPS_PORT}:443
+      - ${HTTP_PORT}:80
+volumes:
+  shared-webroot:
+    name: shared-webroot
+networks:
+  default:
+    name: mattermost

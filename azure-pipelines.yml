@@ -1,0 +1,74 @@
+# Starter pipeline
+# Start with a minimal pipeline that you can customize to build and deploy your code.
+# Add steps that build, run tests, deploy, and more:
+# https://aka.ms/yaml
+
+trigger: #none # Don't run the piepline automatically
+  #- main
+  - dev # Run the pipeline everytime commit to dev
+
+pool:
+  vmImage: ubuntu-latest
+
+stages:
+  - stage: tfvalidate
+    jobs:
+      - job: validate
+        continueOnError: false # Job quits if fails
+        steps:
+          - task: TerraformInstaller@0
+            displayName: tfinstall
+            inputs:
+              terraformVersion: 'latest'
+ 
+          - task: TerraformTaskV3@3
+            inputs:
+              provider: 'azurerm'
+              command: 'init'
+              backendServiceArm: <subscriptionName> 
+              backendAzureRmResourceGroupName: <resourceGroupName> 
+              backendAzureRmStorageAccountName: <storageAccountName> 
+              backendAzureRmContainerName: <containerName>
+              backendAzureRmKey: 'dev/terraform.tfstate'
+          
+          - task: TerraformTaskV3@3
+            displayName: validate
+            inputs:
+              provider: 'azurerm'
+              command: 'validate'
+
+  - stage: tfdeploy
+    condition: succeeded('tfvalidate') # Only runs if tfvalidate succeeds
+    dependsOn: tfvalidate # Wait for tfvalidate ot finish before tfdeploy starts
+    jobs:
+      - job: apply
+        steps:
+          - task: TerraformInstaller@0
+            displayName: tfinstall
+            inputs:
+              terraformVersion: 'latest'
+ 
+          - task: TerraformTaskV3@3
+            inputs:
+              provider: 'azurerm'
+              command: 'init'
+              backendServiceArm: <subscriptionName>
+              backendAzureRmResourceGroupName: <resourceGroupName>
+              backendAzureRmStorageAccountName: <storageAccountName>
+              backendAzureRmContainerName: <containerName>
+              backendAzureRmKey: 'dev/terraform.tfstate'
+
+          - task: TerraformTaskV3@3
+            displayName: plan
+            inputs:
+              provider: 'azurerm'
+              command: 'plan'
+              environmentServiceNameAzureRM: <subscriptionName>
+          - task: TerraformTaskV3@3
+            displayName: apply
+            inputs:
+              provider: 'azurerm'
+              command: 'apply'
+              environmentServiceNameAzureRM: <subscriptionName>
+              
+          
